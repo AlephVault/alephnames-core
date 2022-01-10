@@ -136,7 +136,7 @@ abstract contract HasDomainsAccessControl is SafeOwnable, HasManagers, AccessCon
      * can do anything on registered TLDs or even create one).
      */
     function isTLDsManager(address who) public view returns (bool) {
-        return who != address(0) && hasRole(tldsManagerRole, who);
+        return who != address(0) && managers[who].enabled && hasRole(tldsManagerRole, who);
     }
 
     /**
@@ -144,8 +144,8 @@ abstract contract HasDomainsAccessControl is SafeOwnable, HasManagers, AccessCon
      * for any TLD, or a registered TLD manager for a specific TLD).
      */
     function isTLDManager(bytes32 tldHash, address who) public view returns (bool) {
-        return who != address(0) && hasRole(tldManagerRole, who) && (defaultTLDManagers[who] ||
-                                                                     managesTheTLD(tldHash, who));
+        return who != address(0) && managers[who].enabled && hasRole(tldManagerRole, who) &&
+            (defaultTLDManagers[who] || _managesTheTLD(tldHash, who));
     }
 
     /**
@@ -153,7 +153,7 @@ abstract contract HasDomainsAccessControl is SafeOwnable, HasManagers, AccessCon
      * To this point, it is known that the address is not 0x0 and it HAS the tld manager role.
      * Override it to specify the particular behaviour.
      */
-    function managesTheTLD(bytes32 tldHash, address who) internal view virtual returns (bool);
+    function _managesTheTLD(bytes32 tldHash, address who) internal view virtual returns (bool);
 
     /**
      * Tells whether the account is registered as a domain registrant to a specific TLD hash.
@@ -164,7 +164,7 @@ abstract contract HasDomainsAccessControl is SafeOwnable, HasManagers, AccessCon
         bytes32 tldHash, address who,
         bool requireAdd, bool requireRelease, bool requireTransfer
     ) public view returns (bool) {
-        if (who != address(0) && hasRole(domainRegistrantRole, who)) {
+        if (who != address(0) && managers[who].enabled && hasRole(domainRegistrantRole, who)) {
             // 1. We rely on the address having an explicit permission in the TLD setting. If an
             //    explicit permission is set, then we check that the required flags are true in
             //    the permissions, if any is required.
@@ -189,4 +189,55 @@ abstract contract HasDomainsAccessControl is SafeOwnable, HasManagers, AccessCon
     function hasExplicitTLDPermission(
         bytes32 tldHash, address who
     ) public view virtual returns (bool explicit, bool canAdd, bool canRelease, bool canTransfer);
+
+    /**
+     * Methods with this modifier revert for the 0x0 address. Applies in particular to the
+     * following six grant/revoke methods.
+     */
+    modifier requireNonZeroAddress(address who) {
+        require(who != address(0), "Cannot grant to, or revoke to, address 0x0 any role");
+        _;
+    }
+
+    /**
+     * Grants the TLDs Management Role to a non-zero address.
+     */
+    function _grantTLDsManagementRole(address who) internal requireNonZeroAddress(who) {
+        _grantRole(tldsManagerRole, who);
+    }
+
+    /**
+     * Revokes the TLDs Management Role to a non-zero address.
+     */
+    function _revokeTLDsManagementRole(address who) internal requireNonZeroAddress(who) {
+        _revokeRole(tldsManagerRole, who);
+    }
+
+    /**
+     * Grants the TLD Management Role to a non-zero address.
+     */
+    function _grantTLDManagementRole(address who) internal requireNonZeroAddress(who) {
+        _grantRole(tldManagerRole, who);
+    }
+
+    /**
+     * Revokes the TLD Management Role to a non-zero address.
+     */
+    function _revokeTLDManagementRole(address who) internal requireNonZeroAddress(who) {
+        _revokeRole(tldManagerRole, who);
+    }
+
+    /**
+     * Grants the Domain Registrant Role to a non-zero address.
+     */
+    function _grantDomainRegistrarRole(address who) internal requireNonZeroAddress(who) {
+        _grantRole(domainRegistrantRole, who);
+    }
+
+    /**
+     * Revokes the Domain Registrant Role to a non-zero address.
+     */
+    function _revokeDomainRegistrarRole(address who) internal requireNonZeroAddress(who) {
+        _revokeRole(domainRegistrantRole, who);
+    }
 }
