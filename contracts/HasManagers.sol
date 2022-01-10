@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.4.22 <0.9.0;
 
 import "@openzeppelin/contracts/utils/Context.sol";
@@ -82,7 +83,7 @@ abstract contract HasManagers is Context {
             record.enabled = true;
             emit ManagerAdded(who, record.name);
         } else {
-            managers[who] = Manager({createdAt: block.timestamp, enabled: true});
+            managers[who] = Manager({createdAt: block.timestamp, enabled: true, name: ""});
             managersList.push(who);
             emit ManagerAdded(who, "");
         }
@@ -110,8 +111,8 @@ abstract contract HasManagers is Context {
      */
     function _removeManager(address who) internal {
         Manager storage record = managers[who];
-        if (manager.createdAt != 0) {
-            manager.enabled = false;
+        if (record.createdAt != 0) {
+            record.enabled = false;
         }
         emit ManagerRemoved(who);
     }
