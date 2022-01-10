@@ -130,5 +130,63 @@ abstract contract HasDomainsAccessControl is SafeOwnable, HasManagers, AccessCon
     // Notes: Only query functions that ask for permissions will be coded here. Also,
     //        some abstract methods will be added -which interact with more data- which
     //        will be overridden later.
-    // TODO continue with the methods.
+
+    /**
+     * Tells whether the account is a TLDs manager (i.e. a global, trusted user, who
+     * can do anything on registered TLDs or even create one).
+     */
+    function isTLDsManager(address who) public view returns (bool) {
+        return who != address(0) && hasRole(tldsManagerRole, who);
+    }
+
+    /**
+     * Tells whether the account is a specific TLD manager (i.e. a default TLD manager
+     * for any TLD, or a registered TLD manager for a specific TLD).
+     */
+    function isTLDManager(bytes32 tldHash, address who) public view returns (bool) {
+        return who != address(0) && hasRole(tldManagerRole, who) && (defaultTLDManagers[who] ||
+                                                                     managesTheTLD(tldHash, who));
+    }
+
+    /**
+     * Tells whether the account is registered as a manager related to a specific TLD hash.
+     * To this point, it is known that the address is not 0x0 and it HAS the tld manager role.
+     * Override it to specify the particular behaviour.
+     */
+    function managesTheTLD(bytes32 tldHash, address who) internal view virtual returns (bool);
+
+    /**
+     * Tells whether the account is registered as a domain registrant to a specific TLD hash.
+     * The check will involve, first, an explicit permission check (which asks for specific
+     * flags allowing/disallowing the account to add, release or transfer a domain).
+     */
+    function isDomainRegistrant(
+        bytes32 tldHash, address who,
+        bool requireAdd, bool requireRelease, bool requireTransfer
+    ) public view returns (bool) {
+        if (who != address(0) && hasRole(domainRegistrantRole, who)) {
+            // 1. We rely on the address having an explicit permission in the TLD setting. If an
+            //    explicit permission is set, then we check that the required flags are true in
+            //    the permissions, if any is required.
+            (bool explicit, bool canAdd, bool canRelease, bool canTransfer) = hasExplicitTLDPermission(tldHash, who);
+            if (explicit) {
+                return (canAdd && !requireAdd) && (canRelease || !requireRelease) && (canTransfer || !requireTransfer);
+            }
+
+            // 2. Otherwise, we rely on the address belonging to the defaultDomainRegistrants.
+            return defaultDomainRegistrants[who];
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Tells whether an address is explicitly registered into a TLD. If it has an explicit
+     * setting, then the 3 flags must also be returned as the result value, with the first
+     * value being true. Otherwise, the first value must be false, and the 3 other result
+     * values don't matter.
+     */
+    function hasExplicitTLDPermission(
+        bytes32 tldHash, address who
+    ) public view virtual returns (bool explicit, bool canAdd, bool canRelease, bool canTransfer);
 }
